@@ -1,7 +1,7 @@
 """Command line interface for deduplicating a text corpus."""
 
 import json
-import subprocess
+import smart_open
 from pathlib import Path
 from typing import Any, Dict, Generator, Union
 
@@ -11,8 +11,8 @@ from .deduper import Deduper
 
 
 @click.command()
-@click.argument("corpus", type=click.Path(exists=True))
-@click.argument("output-dir", type=click.Path())
+@click.argument("corpus", type=click.Path(exists=True), nargs=-1)
+@click.argument("output-dir", type=click.Path(), nargs=1)
 @click.option(
     "--split-method",
     type=click.Choice(["word_ngram", "paragraph", "none"]),
@@ -120,7 +120,7 @@ from .deduper import Deduper
     help="Whether to overwrite the output directory if it already exists.",
 )
 def main(
-    corpus: str,
+    corpus: list[str],
     split_method: str,
     ngram_size: int,
     ngram_stride: int,
@@ -195,19 +195,20 @@ def main(
     )
 
     # Count the number of lines in the corpus
-    proc = subprocess.Popen(
-        ["wc", "-l", corpus], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-    )
-    num_docs = int(proc.communicate()[0].split()[0])
+    #proc = subprocess.Popen(
+    #    ["wc", "-l", corpus], stdout=subprocess.PIPE, stderr=subprocess.PIPE
+    #)
+    #num_docs = int(proc.communicate()[0].split()[0])
 
     # Create generator for the corpus
     def corpus_generator() -> Generator[Union[str, Dict[str, Any]], None, None]:
-        with Path(corpus).open() as f:
-            for line in f:
-                try:
-                    yield json.loads(line)
-                except json.JSONDecodeError:
-                    yield line.strip("\n")
+        for corpus_path in corpus:
+            with smart_open.open(Path(corpus_path)) as f:
+                for line in f:
+                    try:
+                        yield json.loads(line)
+                    except json.JSONDecodeError:
+                        yield line.strip("\n")
 
     # Deduplicate the corpus
     deduper.deduplicate(
@@ -215,5 +216,5 @@ def main(
         text_column=text_column,
         output_dir=output_dir,
         overwrite=overwrite,
-        num_docs=num_docs,
+        #num_docs=num_docs,
     )
